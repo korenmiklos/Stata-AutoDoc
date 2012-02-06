@@ -5,60 +5,61 @@ import sys
 NODE_REGEX = """(?P<node>[.\w_"`'/]*)"""
 NAME_REGEX = """(?P<node>[\w\s]*)"""
 
+SINGLE_LINE_COMMENT = re.compile("^\s*\*(?P<comment>.*)")
+INLINE_COMMENT = re.compile("^(?P<line1>.*)/\*(?P<comment>.*)\*/(?P<line2>.*)$")
+MULTILINE_COMMENT_BEGIN = re.compile("^(?P<line>.*)/\*(?P<comment>.*)")
+MULTILINE_COMMENT_END = re.compile("^(?P<comment>.*)\*/(?P<line>.*)$")
+
 REGEXES = (
-    (re.compile("\s*tempfile\s+"+NAME_REGEX+".*"), 'tempfile'),
-    (re.compile("\s*use\s+"+NODE_REGEX+".*"), 'data_input'),
-    (re.compile(".*(merge|csvmerge|append|insheet|infile|cross|join).*\s+using\s+"+NODE_REGEX+".*"), 'data_input'),
-    (re.compile("\s*(do|run)\s+"+NODE_REGEX+".*"), 'script_input'),
-    (re.compile("\s*(save|saveold)\s+"+NODE_REGEX+".*"), 'data_output'),
-    (re.compile(".*(outsheet|outfile|log).*\s+using\s+"+NODE_REGEX+".*"), 'data_output'),
+    (re.compile("^\s*tempfile\s+"+NAME_REGEX+".*"), 'tempfile'),
+    (re.compile("^\s*use\s+"+NODE_REGEX+".*"), 'data_input'),
+    (re.compile("^.*(merge|csvmerge|append|insheet|infile|cross|join).*\s+using\s+"+NODE_REGEX+".*"), 'data_input'),
+    (re.compile("^\s*(do|run)\s+"+NODE_REGEX+".*"), 'script_input'),
+    (re.compile("^\s*(save|saveold)\s+"+NODE_REGEX+".*"), 'data_output'),
+    (re.compile("^.*(outsheet|outfile|log).*\s+using\s+"+NODE_REGEX+".*"), 'data_output'),
     )
+
+FIELDS = {
+    'data_input': 'Data inputs',
+    'script_input': 'Script inputs',
+    'data_output': 'Data outputs',
+    'tempfile': 'Temporary files',
+    'comment': 'Comments',
+    }
 
 class Node(object):
     def __init__(self,filename):
         self.filename = filename
-        self.dependencies = {
-                'data_input': [],
-                'script_input': [],
-                'data_output': [],
-            }
-        self.state = []
+        # each field starst with an emtpy list
+        self.attributes = dict([(key, []) for key in FIELDS.keys()])
+        self.ignore = False
 
     @property
     def data_inputs(self):
-        return self.dependencies['data_input']
+        return self.attributes['data_input']
 
     @property
     def data_outputs(self):
-        return self.dependencies['data_output']
+        return self.attributes['data_output']
         
     @property
     def script_inputs(self):
-        return self.dependencies['script_input']
+        return self.attributes['script_input']
         
-    def add_state(self,text):
-        if not text in self.state:
-            self.state.append(text)
+    def add_tempfile(self,text):
+        if not text in self.attributes['tempfile']:
+            self.attributes['tempfile'].append(text)
 
-    def is_in_state(self,text):
-        return text in self.state
+    def is_tempfile(self,text):
+        return text in self.attributes['tempfile']
 
-    def add_dependency(self,text,categ):
+    def add_attribute(self,text,categ):
         if categ=="tempfile":
             for name in text.split():
                 # multiple tempfile names may be separated by space
-                self.add_state("`"+name+"'")
-        elif not text in self.dependencies[categ]:
-            self.dependencies[categ].append(text)
-
-    def add_data_input(self,text):
-        self.add_dependency(self,text,'data_input')
-            
-    def add_script_input(self,text):
-        self.add_dependency(self,text,'script_input')
-            
-    def add_data_output(self,text):
-        self.add_dependency(self,text,'data_output')
+                self.add_tempfile("`"+name+"'")
+        elif not text in self.attributes[categ]:
+            self.attributes[categ].append(text.strip())
 
     def get_absolute_path(self):
         pass 
@@ -69,10 +70,10 @@ class Node(object):
         return open(self.filename,"r")
         
     def get_yaml(self):
-        dct = {"Data inputs" : self.data_inputs,
-         "Script inputs": self.script_inputs,
-         "Data outputs": self.data_outputs,
-         "Temporary files": self.state}
+        # change to verbose name
+        dct = {}
+        for key, value in self.attributes.iteritems():
+            dct[FIELDS[key]] = value
         return yaml.dump(dct,default_flow_style=False)
 
     def get_blockdiag(self):
@@ -95,13 +96,42 @@ class Node(object):
 class DoFile(Node):
     def extract_inputs_and_outputs(self):
         for line in self.open_for_reading():
-            for rgx, categ in REGEXES:
-                if rgx.match(line):
-                    m = rgx.match(line)
-                    node = m.groupdict()['node']
-                    if not self.is_in_state(node):
-                        # only add if not a temporary file
-                        self.add_dependency(node,categ)
+            if self.ignore:
+                # when in comment mode, ignore all other patterns
+                if MULTILINE_COMMENT_END.match(line):
+                    m = MULTILINE_COMMENT_END.match(line)
+                    # pass end of line on to further processing
+                    line = m.groupdict()['line']
+                    # add last line of comment
+                    comment +=  m.groupdict()['comment']
+                    self.add_attribute(comment,'comment')
+                    self.ignore = False
+                else:
+                    # if no match, keep adding to comment
+                    comment += line 
+            else:
+                # check comments first
+                if SINGLE_LINE_COMMENT.match(line):
+                    comment = SINGLE_LINE_COMMENT.match(line).groupdict()['comment']
+                    self.add_attribute(comment,'comment')
+                elif INLINE_COMMENT.match(line):
+                    m = INLINE_COMMENT.match(line).groupdict()
+                    comment = m['comment']
+                    self.add_attribute(comment,'comment')
+                    line = m['line1'] + ' ' + m['line2']
+                elif MULTILINE_COMMENT_BEGIN.match(line):
+                    m = MULTILINE_COMMENT_BEGIN.match(line)
+                    # pass beginning of line on to further processing
+                    line = m.groupdict()['line']
+                    comment = m.groupdict()['comment'] 
+                    self.ignore = True
+                for rgx, categ in REGEXES:
+                    if rgx.match(line):
+                        m = rgx.match(line)
+                        node = m.groupdict()['node']
+                        if not self.is_tempfile(node):
+                            # only add if not a temporary file
+                            self.add_attribute(node,categ)
             
 
 class DataFile(Node):
