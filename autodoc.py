@@ -1,6 +1,8 @@
 import yaml
 import re
 import sys
+import os
+import glob
 
 NODE_REGEX = """(?P<node>[.\w_"`'/]*)"""
 NAME_REGEX = """(?P<node>[\w\s]*)"""
@@ -20,6 +22,7 @@ REGEXES = (
     )
 
 FIELDS = {
+    'docstring': 'Purpose of this file',
     'data_input': 'Data inputs',
     'script_input': 'Script inputs',
     'data_output': 'Data outputs',
@@ -28,11 +31,14 @@ FIELDS = {
     }
 
 class Node(object):
-    def __init__(self,filename):
+    def __init__(self,filename,graph):
         self.filename = filename
         # each field starst with an emtpy list
         self.attributes = dict([(key, []) for key in FIELDS.keys()])
         self.ignore = False
+        self.graph = graph
+        # add node to its graph if not there yet
+        self.graph.add_node(self)
 
     @property
     def data_inputs(self):
@@ -59,6 +65,19 @@ class Node(object):
                 # multiple tempfile names may be separated by space
                 self.add_tempfile("`"+name+"'")
         elif not text in self.attributes[categ]:
+            if categ in ('data_input', 'data_output', 'script_input'):
+                # preprocessing of node
+                name = text.strip()
+                if self.graph.has_name(name):
+                    newnode = self.graph.get_node(name)
+                else:
+                    newnode = Node(name,self.graph)
+                if categ in ('data_input', 'script_input'):
+                    # dependence may be encoded in an option
+                    self.graph.depends_on(newnode,self)
+                elif categ in ('data_output',):
+                    self.graph.depends_on(self,newnode)
+
             self.attributes[categ].append(text.strip())
 
     def get_absolute_path(self):
@@ -74,23 +93,55 @@ class Node(object):
         dct = {}
         for key, value in self.attributes.iteritems():
             dct[FIELDS[key]] = value
+        # add a docstring
+        if self.attributes['comment']:
+            dct[FIELDS['docstring']] = self.attributes['comment'][0]
+            del dct[FIELDS['comment']][0]
         return yaml.dump(dct,default_flow_style=False)
+
+        
+class Graph(object):
+    def __init__(self):
+        self.nodes = {}
+        self.edges = []
+
+    def has_name(self,text):
+        return text in self.nodes.keys()
+
+    def has_node(self,node):
+        return self.has_name(node.get_canonical_name())
+
+    def add_node(self,node):
+        if not self.has_node(node):
+            self.nodes[node.get_canonical_name()] = node
+
+    def get_node(self,name):
+        if self.has_name(name):
+            return self.nodes[name]
+
+    def depends_on(self,A,B):
+        self.add_node(A)
+        self.add_node(B)
+        edge = (A.get_canonical_name(), B.get_canonical_name())
+        if not edge in self.edges:
+            self.edges.append(edge)
 
     def get_blockdiag(self):
         ''' A blockdiag representation of dependencies.'''
-        nodes = []
-        text = 'NODE0 [label="%s"];\n' % self.get_canonical_name()
-        index = 1
-        for line in self.data_inputs:
-            text += 'NODE%d [label="%s", color="#888888"];\n' % (index,line)
-            text += 'NODE%d -> NODE0;\n' % index
+        index = 0
+        dct = {}
+        text = ""
+        # list nodes
+        for name in self.nodes.keys():
+            dct[name] = index
+            # format should depend on node attributes
+            text += 'NODE%d [label="%s"];\n' % (index,name)
             index += 1
-        for line in self.data_outputs:
-            text += 'NODE%d [label="%s", color="#888888"];\n' % (index,line)
-            text += 'NODE0 -> NODE%d;\n' % index
-            index += 1
+        for edge in self.edges:
+            A = dct[edge[0]]
+            B = dct[edge[1]]
+            text += 'NODE%d -> NODE%d;\n' % (A,B)
         return text
-        
 
     
 class DoFile(Node):
@@ -144,7 +195,16 @@ class Parser(object):
         pass 
     
 if __name__=="__main__":
-    dofile = DoFile(sys.argv[1])
-    dofile.extract_inputs_and_outputs()
-    print dofile.get_yaml()
-    print dofile.get_blockdiag()
+
+    # creare an empty graph
+    graph = Graph()
+    try:
+        path = sys.argv[1]
+    except:
+        path = './'
+    for infile in glob.glob( os.path.join(path, '*.do') ):
+        print "current file is: " + infile
+        dofile = DoFile(infile,graph)
+        dofile.extract_inputs_and_outputs()
+        print dofile.get_yaml()
+    print graph.get_blockdiag()
