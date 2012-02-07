@@ -63,18 +63,6 @@ class Node(object):
         # add node to its graph if not there yet
         self.graph.add_node(self)
 
-    @property
-    def data_inputs(self):
-        return self.attributes['data_input']
-
-    @property
-    def data_outputs(self):
-        return self.attributes['data_output']
-        
-    @property
-    def script_inputs(self):
-        return self.attributes['script_input']
-        
     def add_tempfile(self,text):
         if not text in self.attributes['tempfile']:
             self.attributes['tempfile'].append(text)
@@ -107,8 +95,6 @@ class Node(object):
                         self.graph.depends_on(self,newnode)
             self.attributes[categ].append(text.strip())
 
-    def get_absolute_path(self):
-        pass 
     def get_canonical_name(self):
         return os.path.join(self.path,self.filename)
         
@@ -219,11 +205,6 @@ class DoFile(Node):
 class DataFile(Node):
     pass
     
-class Parser(object):
-    def walk_directory(self):
-        pass 
-    def read_yaml_file(self):
-        pass 
     
 if __name__=="__main__":
 
