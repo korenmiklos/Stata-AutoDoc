@@ -45,14 +45,19 @@ NODE_TYPES = {
                 'color': '#71B7B7'},
 }
 
-def normalize(name):
+def normalize(name,node_type=None):
     # strip whitespace and "s
     name = ''.join(name.strip().split('"'))
+    if node_type:
+        extension = os.path.splitext(name)[1][1:].strip()   
+        # if missing extension, add default by node type
+        if not extension:
+            name += '.' + NODE_TYPES[node_type]['extension']
     return os.path.normpath(name)   
 
 class Node(object):
     def __init__(self,filename,node_type,graph):
-        path, name = os.path.split(normalize(filename))
+        path, name = os.path.split(normalize(filename,node_type))
         self.filename = name
         self.path = path
         self.node_type = node_type
@@ -82,7 +87,7 @@ class Node(object):
                 node_direction = categ.split('_')[1] # e.g., output
                 if node_direction in ('input', 'output'):
                     # preprocessing of node
-                    name = normalize(os.path.join(self.path,text.strip()))
+                    name = normalize(os.path.join(self.path,text.strip()),node_type)
                     # name is relative to current path
                     if self.graph.has_name(name):
                         newnode = self.graph.get_node(name)
