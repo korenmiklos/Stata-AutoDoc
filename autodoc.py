@@ -18,14 +18,18 @@ REGEXES = (
     (re.compile("^.*(merge|csvmerge|append|insheet|infile|cross|join).*\s+using\s+"+NODE_REGEX+".*"), 'data_input'),
     (re.compile("^\s*(do|run)\s+"+NODE_REGEX+".*"), 'script_input'),
     (re.compile("^\s*(save|saveold)\s+"+NODE_REGEX+".*"), 'data_output'),
-    (re.compile("^.*(outsheet|outfile|log).*\s+using\s+"+NODE_REGEX+".*"), 'data_output'),
+    (re.compile("^.*(outsheet|outfile).*\s+using\s+"+NODE_REGEX+".*"), 'data_output'),
+    (re.compile("^.*(log|outreg).*\s+using\s+"+NODE_REGEX+".*"), 'text_output'),
+    (re.compile("^.*graph\s+export\s+"+NODE_REGEX+".*"), 'graph_output'),
     )
 
 FIELDS = {
     'docstring': 'Purpose of this file',
-    'data_input': 'Data inputs',
-    'script_input': 'Script inputs',
-    'data_output': 'Data outputs',
+    'data_input': 'Requires data',
+    'script_input': 'Requires script',
+    'data_output': 'Creates data',
+    'text_output': 'Creates text',
+    'graph_output': 'Creates graph',
     'tempfile': 'Temporary files',
     'comment': 'Comments',
     }
@@ -77,20 +81,22 @@ class Node(object):
                 # multiple tempfile names may be separated by space
                 self.add_tempfile("`"+name+"'")
         elif not text in self.attributes[categ]:
-            if categ in ('data_input', 'data_output', 'script_input'):
-                # preprocessing of node
-                name = text.strip()
-                if self.graph.has_name(name):
-                    newnode = self.graph.get_node(name)
-                else:
-                    node_type = categ.split('_')[0]
-                    newnode = Node(name,node_type,self.graph)
-                if categ in ('data_input', 'script_input'):
-                    # dependence may be encoded in an option
-                    self.graph.depends_on(newnode,self)
-                elif categ in ('data_output',):
-                    self.graph.depends_on(self,newnode)
-
+            node_type = categ.split('_')[0] # e.g., data
+            if node_type in NODE_TYPES.keys():
+                # only do node processing for know node types
+                node_direction = categ.split('_')[1] # e.g., output
+                if node_direction in ('input', 'output'):
+                    # preprocessing of node
+                    name = text.strip()
+                    if self.graph.has_name(name):
+                        newnode = self.graph.get_node(name)
+                    else:                    
+                        newnode = Node(name,node_type,self.graph)
+                    if node_direction in ('input', ):
+                        # dependence may be encoded in an option
+                        self.graph.depends_on(newnode,self)
+                    else:
+                        self.graph.depends_on(self,newnode)
             self.attributes[categ].append(text.strip())
 
     def get_absolute_path(self):
