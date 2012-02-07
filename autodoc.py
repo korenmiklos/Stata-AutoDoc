@@ -29,10 +29,22 @@ FIELDS = {
     'tempfile': 'Temporary files',
     'comment': 'Comments',
     }
+    
+NODE_TYPES = {
+    'script': { 'extension': 'do',
+                'color': '#99B3CC'},
+    'data': { 'extension': 'dta',
+                'color': '#FFFFFF'},
+    'graph': { 'extension': 'png',
+                'color': '#CC99B3'},
+    'text': { 'extension': 'txt',
+                'color': '#71B7B7'},
+}
 
 class Node(object):
-    def __init__(self,filename,graph):
+    def __init__(self,filename,node_type,graph):
         self.filename = filename
+        self.node_type = node_type
         # each field starst with an emtpy list
         self.attributes = dict([(key, []) for key in FIELDS.keys()])
         self.ignore = False
@@ -71,7 +83,8 @@ class Node(object):
                 if self.graph.has_name(name):
                     newnode = self.graph.get_node(name)
                 else:
-                    newnode = Node(name,self.graph)
+                    node_type = categ.split('_')[0]
+                    newnode = Node(name,node_type,self.graph)
                 if categ in ('data_input', 'script_input'):
                     # dependence may be encoded in an option
                     self.graph.depends_on(newnode,self)
@@ -134,8 +147,9 @@ class Graph(object):
         # list nodes
         for name in self.nodes.keys():
             dct[name] = index
+            color = NODE_TYPES[self.get_node(name).node_type]['color']
             # format should depend on node attributes
-            text += 'NODE%d [label="%s"];\n' % (index,name)
+            text += 'NODE%d [label="%s", color="%s"];\n' % (index,name,color)
             index += 1
         for edge in self.edges:
             A = dct[edge[0]]
@@ -145,6 +159,9 @@ class Graph(object):
 
     
 class DoFile(Node):
+    def __init__(self,fname,graph):
+        super(DoFile,self).__init__(fname,'script',graph)
+    
     def extract_inputs_and_outputs(self):
         for line in self.open_for_reading():
             if self.ignore:
