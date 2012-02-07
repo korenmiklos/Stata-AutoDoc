@@ -93,7 +93,9 @@ class Node(object):
                         self.graph.depends_on(newnode,self)
                     else:
                         self.graph.depends_on(self,newnode)
-            self.attributes[categ].append(text.strip())
+                    self.attributes[categ].append(name)
+            else:
+                self.attributes[categ].append(text.strip())
 
     def get_canonical_name(self):
         return os.path.join(self.path,self.filename)
