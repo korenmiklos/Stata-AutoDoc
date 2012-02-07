@@ -45,9 +45,16 @@ NODE_TYPES = {
                 'color': '#71B7B7'},
 }
 
+def normalize(name):
+    # strip whitespace and "s
+    name = ''.join(name.strip().split('"'))
+    return os.path.normpath(name)   
+
 class Node(object):
     def __init__(self,filename,node_type,graph):
-        self.filename = filename
+        path, name = os.path.split(normalize(filename))
+        self.filename = name
+        self.path = path
         self.node_type = node_type
         # each field starst with an emtpy list
         self.attributes = dict([(key, []) for key in FIELDS.keys()])
@@ -87,7 +94,8 @@ class Node(object):
                 node_direction = categ.split('_')[1] # e.g., output
                 if node_direction in ('input', 'output'):
                     # preprocessing of node
-                    name = text.strip()
+                    name = normalize(os.path.join(self.path,text.strip()))
+                    # name is relative to current path
                     if self.graph.has_name(name):
                         newnode = self.graph.get_node(name)
                     else:                    
@@ -102,10 +110,10 @@ class Node(object):
     def get_absolute_path(self):
         pass 
     def get_canonical_name(self):
-        return self.filename
+        return os.path.join(self.path,self.filename)
         
     def open_for_reading(self):
-        return open(self.filename,"r")
+        return open(os.path.join(self.path,self.filename),"r")
         
     def get_yaml(self):
         # change to verbose name
@@ -226,7 +234,7 @@ if __name__=="__main__":
     except:
         path = './'
     for infile in glob.glob( os.path.join(path, '*.do') ):
-        print "current file is: " + infile
+        print "Current file is: " + infile
         dofile = DoFile(infile,graph)
         dofile.extract_inputs_and_outputs()
         print dofile.get_yaml()
