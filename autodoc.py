@@ -3,6 +3,7 @@ import re
 import sys
 import os
 import glob
+from hashlib import md5
 
 NODE_REGEX = """(?P<node>[.\w_"`'/]*)"""
 NAME_REGEX = """(?P<node>[\w\s]*)"""
@@ -65,15 +66,26 @@ class Node(object):
         self.attributes = dict([(key, []) for key in FIELDS.keys()])
         self.ignore = False
         self.graph = graph
+        self._text =''
         # add node to its graph if not there yet
         self.graph.add_node(self)
 
     def add_tempfile(self,text):
         if not text in self.attributes['tempfile']:
             self.attributes['tempfile'].append(text)
+            
+    def long_hash(self):
+    	return md5(self._text).hexdigest()
+    
+    def short_hash(self):
+    	return self.long_hash()[-5:]
 
     def is_tempfile(self,text):
         return text in self.attributes['tempfile']
+        
+    def add_text(self,text):
+    	# remove all whitespace
+    	self._text += ''.join(text.strip().split(' '))
 
     def add_attribute(self,text,categ):
         if categ=="tempfile":
@@ -113,6 +125,9 @@ class Node(object):
         dct = {}
         for key, value in self.attributes.iteritems():
             dct[FIELDS[key]] = value
+        # add hash
+        dct['Long hash'] = self.long_hash()
+        dct['Short hash'] = self.short_hash()
         # add a docstring
         if self.attributes['comment']:
             dct[FIELDS['docstring']] = self.attributes['comment'][0]
@@ -200,6 +215,8 @@ class DoFile(Node):
                     line = m.groupdict()['line']
                     comment = m.groupdict()['comment'] 
                     self.ignore = True
+                # save commentless line for hash calculation
+                self.add_text(line)
                 for rgx, categ in REGEXES:
                     if rgx.match(line):
                         m = rgx.match(line)
