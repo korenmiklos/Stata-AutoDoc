@@ -16,20 +16,38 @@ class TestFunctions(ut.TestCase):
             # known nornalizations
             self.assertEqual(normalize(each[0],each[1]),each[2])
 
+def make_DoNode(filecontent):
+    class Mock(DoFile):
+        def open_for_reading(self):
+            return filecontent.splitlines()
+    return Mock()
+
 class TestNode(ut.TestCase):
     def setUp(self):
-        # set up a mock node
-        pass
-
-    def test_tempfiles(self):
+        self.graph = Graph()
+        self.node = Node(filename='',node_type=None,graph=self.graph)
+        
+    def test_tempfile_exists(self):
         # when I add a tempfile, it should be listed
-        pass
+        self.node.add_tempfile('tmp1')
+        self.failUnless(self.node.is_tempfile('tmp1'))
 
-    def test_hash(self):
+    def test_nonexistent_tempfile(self):
+        # a nonexistent tempfile should not be listed
+        self.failIf(self.node.is_tempfile('tmp2'))
+
+    def test_hash_robust_to_whitespace(self):
         # hash should not change with whitespace
+        pass 
+
+    def test_hash_changes_with_content(self):
         # hash should change with content
+        pass 
+
+    def test_short_hash_vs_long(self):
         # short has should be trimmed long
-        pass
+        pass 
+
 
     def test_attribute(self):
         # test list of attributes and their setting
@@ -58,6 +76,21 @@ class TestGraph(ut.TestCase):
 def TestDoFile(TestNode):
     # we should already have the mock set up
     def test_regexes(self):
+    # set up a mock node
+        sample_file1 = make_DoNode('''
+                /* customs and bertarifa merge */
+                clear
+                set mem 650m
+                set more off
+
+                selectdir /share/datastore /media/home/share/datastore
+                local datastore `r(found)'
+
+                /* read bertarifa */
+                use `datastore'/bertarifa/balance9103_cleaned, clear
+                d
+                drop tmp* ln* foreign
+                ''')
         # test how the regexes resolve a known list of statements, good and bad
         pass
     def test_comments(self):

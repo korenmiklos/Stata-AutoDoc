@@ -181,8 +181,8 @@ class Graph(object):
 
     
 class DoFile(Node):
-    def __init__(self,fname,graph):
-        super(DoFile,self).__init__(fname,'script',graph)
+    def __init__(self,filename,graph):
+        super(DoFile,self).__init__(filename,'script',graph)
     
     def extract_inputs_and_outputs(self):
         for line in self.open_for_reading():
