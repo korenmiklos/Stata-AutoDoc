@@ -9,6 +9,7 @@ class TestFunctions(ut.TestCase):
             ('code//../data/cucc.dta',None,os.path.join('data','cucc.dta')),
             ('./script.do',None,'script.do'),
             ('code/../data/cucc','data',os.path.join('data','cucc.dta')),
+            ('"long stuff.dta"',None,'"long stuff.dta"'),
         )
 
     def test_normalize(self):

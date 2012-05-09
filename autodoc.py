@@ -47,8 +47,8 @@ NODE_TYPES = {
 }
 
 def normalize(name,node_type=None):
-    # strip whitespace and "s
-    name = ''.join(name.strip().split('"'))
+    # strip whitespace
+    name = name.strip()
     if node_type:
         extension = os.path.splitext(name)[1][1:].strip()   
         # if missing extension, add default by node type
@@ -238,6 +238,7 @@ if __name__=="__main__":
         path = sys.argv[1]
     except:
         path = './'
+    print path
     for infile in glob.glob( os.path.join(path, '*.do') ):
         print "Current file is: " + infile
         dofile = DoFile(infile,graph)
